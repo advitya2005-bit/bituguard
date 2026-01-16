@@ -1,12 +1,10 @@
-from fastapi.staticfiles import StaticFiles
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from datetime import date
 from collections import defaultdict
-import openpyxl
-import os
 
 from sqlalchemy import (
     create_engine, Column, Integer, Float, String, Date, ForeignKey
@@ -14,16 +12,20 @@ from sqlalchemy import (
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 
-# -----------------------
-# FASTAPI
-# -----------------------
+import openpyxl
+
+# -------------------------------------------------
+# FASTAPI APP (Swagger hidden)
+# -------------------------------------------------
 app = FastAPI(
     docs_url=None,
     redoc_url=None,
     openapi_url=None
 )
-app.mount("/", StaticFiles(directory="app/static", html=True), name="static")
 
+# -------------------------------------------------
+# CORS (UI access allowed)
+# -------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -31,9 +33,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# -----------------------
-# DATABASE (SQLITE)
-# -----------------------
+# -------------------------------------------------
+# STATIC UI (IMPORTANT FIX)
+# UI lives at /ui/*
+# -------------------------------------------------
+app.mount(
+    "/ui",
+    StaticFiles(directory="app/static", html=True),
+    name="ui"
+)
+
+# -------------------------------------------------
+# DATABASE (SQLite)
+# -------------------------------------------------
 DATABASE_URL = "sqlite:///./bituguard.db"
 
 engine = create_engine(
@@ -43,9 +55,9 @@ engine = create_engine(
 SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()
 
-# -----------------------
-# DB MODELS
-# -----------------------
+# -------------------------------------------------
+# DATABASE TABLES
+# -------------------------------------------------
 class ReceiptDB(Base):
     __tablename__ = "receipts"
 
@@ -78,9 +90,9 @@ class LabDB(Base):
 
 Base.metadata.create_all(engine)
 
-# -----------------------
-# Pydantic Models
-# -----------------------
+# -------------------------------------------------
+# API INPUT MODELS
+# -------------------------------------------------
 class Receipt(BaseModel):
     tanker_no: str
     quantity: float
@@ -96,9 +108,9 @@ class Lab(BaseModel):
     softening_point: float
     ductility: float
 
-# -----------------------
+# -------------------------------------------------
 # SAVE RECEIPT
-# -----------------------
+# -------------------------------------------------
 @app.post("/save")
 def save_receipt(data: Receipt):
     db = SessionLocal()
@@ -130,9 +142,9 @@ def save_receipt(data: Receipt):
         "leakage_pct": leakage_pct
     }
 
-# -----------------------
-# SAVE LAB
-# -----------------------
+# -------------------------------------------------
+# SAVE LAB REPORT
+# -------------------------------------------------
 @app.post("/lab")
 def save_lab(data: Lab):
     db = SessionLocal()
@@ -155,16 +167,15 @@ def save_lab(data: Lab):
 
     return {"ai_verdict": verdict}
 
-# -----------------------
-# ALERTS
-# -----------------------
+# -------------------------------------------------
+# ALERTS (Leakage + Supplier Risk)
+# -------------------------------------------------
 @app.get("/fraud/alerts")
 def fraud_alerts():
     db = SessionLocal()
     alerts = []
 
     receipts = db.query(ReceiptDB).all()
-
     for r in receipts:
         if r.leakage_pct >= 3:
             alerts.append({
@@ -188,9 +199,9 @@ def fraud_alerts():
     db.close()
     return {"alerts": alerts}
 
-# -----------------------
+# -------------------------------------------------
 # MONTHLY ANALYTICS
-# -----------------------
+# -------------------------------------------------
 @app.get("/analytics/loss/monthly")
 def monthly_loss(year: int, month: int):
     db = SessionLocal()
@@ -212,9 +223,9 @@ def monthly_loss(year: int, month: int):
         "supplier_loss": supplier_loss
     }
 
-# -----------------------
-# EXCEL AUDIT
-# -----------------------
+# -------------------------------------------------
+# EXCEL AUDIT DOWNLOAD
+# -------------------------------------------------
 @app.get("/audit/excel")
 def audit_excel(year: int, month: int):
     db = SessionLocal()
@@ -248,4 +259,8 @@ def audit_excel(year: int, month: int):
     wb.save(filename)
     db.close()
 
-    return FileResponse(filename)
+    return FileResponse(
+        filename,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        filename=filename
+    )
