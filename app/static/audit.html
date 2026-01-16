@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Monthly Audit</title>
+</head>
+<body style="font-family:Arial;padding:20px">
+
+<h2>Download Monthly Audit (Excel)</h2>
+
+<select id="month">
+  <option value="3">March</option>
+</select>
+
+<select id="year">
+  <option value="2026">2026</option>
+</select>
+
+<br><br>
+<button onclick="download()">Download Excel</button>
+
+<script>
+function download() {
+  window.location.href =
+    `http://127.0.0.1:8000/audit/excel?year=${year.value}&month=${month.value}`;
+}
+</script>
+
+</body>
+</html>
