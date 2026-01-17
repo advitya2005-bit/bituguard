@@ -1,76 +1,72 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Add Bitumen Receipt</title>
+  <title>Bitumen Entry</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     body {
       font-family: system-ui, Arial;
-      background: #f4f6f8;
+      background: #f1f5f9;
       margin: 0;
-      padding: 0;
+      padding: 20px;
     }
     .card {
       max-width: 420px;
-      margin: 40px auto;
+      margin: auto;
       background: white;
-      padding: 24px;
-      border-radius: 12px;
-      box-shadow: 0 10px 30px rgba(0,0,0,.08);
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 6px 20px rgba(0,0,0,.08);
     }
     h2 {
-      margin-top: 0;
       text-align: center;
+      margin-top: 0;
     }
     input, button {
       width: 100%;
       padding: 12px;
       margin-top: 10px;
-      border-radius: 8px;
-      border: 1px solid #ccc;
       font-size: 16px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
     }
     button {
-      background: #2563eb;
+      background: #0f172a;
       color: white;
       border: none;
-      margin-top: 20px;
-    }
-    button:active {
-      opacity: .9;
-    }
-    .section {
-      margin-top: 20px;
-      font-weight: 600;
+      margin-top: 16px;
     }
     #msg {
       text-align: center;
-      margin-top: 15px;
+      margin-top: 12px;
       font-weight: 600;
       color: green;
+    }
+    .small {
+      font-size: 13px;
+      color: #555;
+      margin-top: 10px;
+      text-align: center;
     }
   </style>
 </head>
 
 <body>
-  <div class="card">
-    <h2>Bitumen Receipt</h2>
+<div class="card">
+  <h2>Bitumen Receipt</h2>
 
-    <input id="tanker" placeholder="Tanker No">
-    <input id="qty" type="number" placeholder="Invoice Qty (MT)">
-    <input id="recv" type="number" placeholder="Received Qty (MT)">
-    <input id="rate" type="number" placeholder="Rate ₹ / MT">
-    <input id="supplier" placeholder="Supplier">
-    <input id="date" type="date">
+  <input id="tanker" placeholder="Tanker No">
+  <input id="qty" type="number" placeholder="Invoice Qty (MT)">
+  <input id="recv" type="number" placeholder="Received Qty (MT)">
+  <input id="rate" type="number" placeholder="Rate ₹ / MT">
+  <input id="supplier" placeholder="Supplier">
+  <input id="date" type="date">
 
-    <div class="section">Quality</div>
-    <input id="pen" placeholder="Penetration">
-    <input id="soft" placeholder="Softening Point">
-    <input id="duct" placeholder="Ductility">
+  <button onclick="save()">Save</button>
 
-    <button onclick="save()">Save Receipt</button>
-    <div id="msg"></div>
-  </div>
+  <div id="msg"></div>
+  <div class="small">Quality & audit handled automatically</div>
+</div>
 
 <script>
 async function save() {
@@ -88,20 +84,8 @@ async function save() {
         receipt_date: date.value
       })
     });
-    const d = await r.json();
-
-    await fetch("/lab", {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({
-        receipt_id: d.receipt_id,
-        penetration: +pen.value,
-        softening_point: +soft.value,
-        ductility: +duct.value
-      })
-    });
-
-    msg.innerText = "Saved successfully ✔";
+    await r.json();
+    msg.innerText = "Saved ✔";
   } catch {
     msg.innerText = "Server error";
   }

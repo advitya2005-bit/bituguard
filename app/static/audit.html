@@ -2,28 +2,79 @@
 <html>
 <head>
   <title>Monthly Audit</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      font-family: Arial;
+      background: #f4f6f8;
+      padding: 20px;
+    }
+    .box {
+      max-width: 500px;
+      margin: auto;
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+    }
+    select, button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 10px;
+      font-size: 16px;
+    }
+    pre {
+      background: #eee;
+      padding: 10px;
+      margin-top: 15px;
+      white-space: pre-wrap;
+    }
+  </style>
 </head>
-<body style="font-family:Arial;padding:20px">
 
-<h2>Download Monthly Audit (Excel)</h2>
+<body>
+<div class="box">
+  <h2>Monthly Audit</h2>
 
-<select id="month">
-  <option value="3">March</option>
-</select>
+  <select id="month">
+    <option value="1" selected>January</option>
+    <option value="2">February</option>
+    <option value="3">March</option>
+  </select>
 
-<select id="year">
-  <option value="2026">2026</option>
-</select>
+  <select id="year">
+    <option value="2026" selected>2026</option>
+  </select>
 
-<br><br>
-<button onclick="download()">Download Excel</button>
+  <button onclick="loadData()">View Summary</button>
+  <button onclick="downloadExcel()">Download Excel</button>
+
+  <pre id="output">Click "View Summary"</pre>
+</div>
 
 <script>
-function download() {
-  window.location.href =
-    `http://127.0.0.1:8000/audit/excel?year=${year.value}&month=${month.value}`;
+async function loadData() {
+  const m = document.getElementById("month").value;
+  const y = document.getElementById("year").value;
+
+  document.getElementById("output").innerText = "Loading...";
+
+  try {
+    const res = await fetch(
+      `/analytics/loss/monthly?year=${y}&month=${m}`
+    );
+    const data = await res.json();
+    document.getElementById("output").innerText =
+      JSON.stringify(data, null, 2);
+  } catch (e) {
+    document.getElementById("output").innerText = "ERROR loading data";
+  }
+}
+
+function downloadExcel() {
+  const m = document.getElementById("month").value;
+  const y = document.getElementById("year").value;
+  window.location.href = `/audit/excel?year=${y}&month=${m}`;
 }
 </script>
-
 </body>
 </html>
