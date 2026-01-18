@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Quality Check</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      font-family: system-ui, Arial;
+      background: #f1f5f9;
+      padding: 20px;
+    }
+    .card {
+      max-width: 420px;
+      margin: auto;
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 6px 20px rgba(0,0,0,.08);
+    }
+    h2 {
+      text-align: center;
+      margin-top: 0;
+    }
+    input, button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 10px;
+      font-size: 16px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+    button {
+      background: #2563eb;
+      color: white;
+      border: none;
+      margin-top: 16px;
+    }
+    #msg {
+      text-align: center;
+      margin-top: 12px;
+      font-weight: 700;
+    }
+  </style>
+</head>
+
+<body>
+<div class="card">
+  <h2>Quality Check</h2>
+
+  <input id="rid" type="number" placeholder="Receipt ID">
+
+  <input id="pen" type="number" placeholder="Penetration">
+  <input id="soft" type="number" placeholder="Softening Point">
+  <input id="duct" type="number" placeholder="Ductility">
+
+  <button onclick="submitLab()">Submit Test</button>
+
+  <div id="msg"></div>
+</div>
+
+<script>
+async function submitLab() {
+  msg.innerText = "Checking...";
+  msg.style.color = "black";
+
+  try {
+    const res = await fetch("/lab", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        receipt_id: +rid.value,
+        penetration: +pen.value,
+        softening_point: +soft.value,
+        ductility: +duct.value
+      })
+    });
+
+    const data = await res.json();
+
+    if (data.ai_verdict === "PASS") {
+      msg.innerText = "QUALITY PASS ✔";
+      msg.style.color = "green";
+    } else {
+      msg.innerText = "QUALITY FAIL ✖";
+      msg.style.color = "red";
+    }
+  } catch {
+    msg.innerText = "Server error";
+    msg.style.color = "red";
+  }
+}
+</script>
+
+</body>
+</html>

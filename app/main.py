@@ -15,7 +15,7 @@ from sqlalchemy.orm import sessionmaker, relationship
 import openpyxl
 
 # -------------------------------------------------
-# FASTAPI APP (Swagger hidden)
+# APP
 # -------------------------------------------------
 app = FastAPI(
     docs_url=None,
@@ -23,9 +23,6 @@ app = FastAPI(
     openapi_url=None
 )
 
-# -------------------------------------------------
-# CORS (UI access allowed)
-# -------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -34,8 +31,7 @@ app.add_middleware(
 )
 
 # -------------------------------------------------
-# STATIC UI (IMPORTANT FIX)
-# UI lives at /ui/*
+# STATIC FILES
 # -------------------------------------------------
 app.mount(
     "/ui",
@@ -44,7 +40,7 @@ app.mount(
 )
 
 # -------------------------------------------------
-# DATABASE (SQLite)
+# DATABASE
 # -------------------------------------------------
 DATABASE_URL = "sqlite:///./bituguard.db"
 
@@ -56,13 +52,14 @@ SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()
 
 # -------------------------------------------------
-# DATABASE TABLES
+# DATABASE MODELS
 # -------------------------------------------------
 class ReceiptDB(Base):
     __tablename__ = "receipts"
 
     id = Column(Integer, primary_key=True)
     tanker_no = Column(String)
+    grade = Column(String)
     quantity = Column(Float)
     received_quantity = Column(Float)
     bitumen_rate = Column(Float)
@@ -91,10 +88,11 @@ class LabDB(Base):
 Base.metadata.create_all(engine)
 
 # -------------------------------------------------
-# API INPUT MODELS
+# INPUT SCHEMAS
 # -------------------------------------------------
 class Receipt(BaseModel):
     tanker_no: str
+    grade: str
     quantity: float
     received_quantity: float
     bitumen_rate: float
@@ -109,18 +107,55 @@ class Lab(BaseModel):
     ductility: float
 
 # -------------------------------------------------
+# WHATSAPP (SAFE MODE)
+# -------------------------------------------------
+def send_whatsapp(message: str):
+    print("\n========== WHATSAPP ALERT ==========")
+    print(message)
+    print("===================================\n")
+
+# -------------------------------------------------
+# QUALITY CHECK (GRADE BASED)
+# -------------------------------------------------
+def check_quality(grade, penetration, softening, ductility):
+    limits = {
+        "VG10": {"pen": (80, 100), "soft": 40, "duct": 75},
+        "VG30": {"pen": (50, 70), "soft": 47, "duct": 75},
+        "VG40": {"pen": (40, 60), "soft": 50, "duct": 50},
+    }
+
+    g = limits.get(grade)
+    if not g:
+        return "FAIL"
+
+    if not (g["pen"][0] <= penetration <= g["pen"][1]):
+        return "FAIL"
+    if softening < g["soft"]:
+        return "FAIL"
+    if ductility < g["duct"]:
+        return "FAIL"
+
+    return "PASS"
+
+# -------------------------------------------------
 # SAVE RECEIPT
 # -------------------------------------------------
 @app.post("/save")
 def save_receipt(data: Receipt):
     db = SessionLocal()
 
+    if not data.grade:
+        return {"error": "Grade required"}
+
     loss_mt = max(0, data.quantity - data.received_quantity)
     loss_rupees = round(loss_mt * data.bitumen_rate, 2)
-    leakage_pct = round((loss_mt / data.quantity) * 100, 2) if data.quantity > 0 else 0
+    leakage_pct = round(
+        (loss_mt / data.quantity) * 100, 2
+    ) if data.quantity > 0 else 0
 
     rec = ReceiptDB(
         tanker_no=data.tanker_no,
+        grade=data.grade,
         quantity=data.quantity,
         received_quantity=data.received_quantity,
         bitumen_rate=data.bitumen_rate,
@@ -143,15 +178,26 @@ def save_receipt(data: Receipt):
     }
 
 # -------------------------------------------------
-# SAVE LAB REPORT
+# SAVE LAB RESULT
 # -------------------------------------------------
 @app.post("/lab")
 def save_lab(data: Lab):
     db = SessionLocal()
 
-    verdict = "PASS"
-    if data.penetration < 50 or data.ductility < 75:
-        verdict = "FAIL"
+    receipt = db.query(ReceiptDB).filter(
+        ReceiptDB.id == data.receipt_id
+    ).first()
+
+    if not receipt:
+        db.close()
+        return {"error": "Invalid receipt ID"}
+
+    verdict = check_quality(
+        receipt.grade,
+        data.penetration,
+        data.softening_point,
+        data.ductility
+    )
 
     lab = LabDB(
         receipt_id=data.receipt_id,
@@ -168,7 +214,7 @@ def save_lab(data: Lab):
     return {"ai_verdict": verdict}
 
 # -------------------------------------------------
-# ALERTS (Leakage + Supplier Risk)
+# FRAUD / ALERTS
 # -------------------------------------------------
 @app.get("/fraud/alerts")
 def fraud_alerts():
@@ -180,12 +226,11 @@ def fraud_alerts():
         if r.leakage_pct >= 3:
             alerts.append({
                 "type": "LEAKAGE",
-                "message": f"{r.tanker_no} leakage {r.leakage_pct}%"
+                "message": f"{r.tanker_no} ({r.grade}) leakage {r.leakage_pct}%"
             })
 
     supplier_fail = defaultdict(int)
     labs = db.query(LabDB).filter(LabDB.verdict == "FAIL").all()
-
     for lab in labs:
         supplier_fail[lab.receipt.supplier] += 1
 
@@ -198,6 +243,60 @@ def fraud_alerts():
 
     db.close()
     return {"alerts": alerts}
+
+# -------------------------------------------------
+# SUPPLIER SCORECARD
+# -------------------------------------------------
+@app.get("/supplier/scorecard")
+def supplier_scorecard():
+    db = SessionLocal()
+
+    receipts = db.query(ReceiptDB).all()
+    labs = db.query(LabDB).all()
+
+    data = {}
+
+    for r in receipts:
+        key = r.supplier.lower()
+        if key not in data:
+            data[key] = {
+                "supplier": r.supplier,
+                "tankers": 0,
+                "total_leakage": 0,
+                "quality_fails": 0
+            }
+        data[key]["tankers"] += 1
+        data[key]["total_leakage"] += r.leakage_pct
+
+    for lab in labs:
+        if lab.verdict == "FAIL":
+            key = lab.receipt.supplier.lower()
+            if key in data:
+                data[key]["quality_fails"] += 1
+
+    result = []
+    for s in data.values():
+        avg_leak = round(
+            s["total_leakage"] / s["tankers"], 2
+        ) if s["tankers"] > 0 else 0
+
+        if s["quality_fails"] >= 3 or avg_leak >= 5:
+            risk = "HIGH"
+        elif s["quality_fails"] >= 1 or avg_leak >= 3:
+            risk = "MEDIUM"
+        else:
+            risk = "LOW"
+
+        result.append({
+            "supplier": s["supplier"],
+            "tankers": s["tankers"],
+            "avg_leakage_pct": avg_leak,
+            "quality_fails": s["quality_fails"],
+            "risk": risk
+        })
+
+    db.close()
+    return result
 
 # -------------------------------------------------
 # MONTHLY ANALYTICS
@@ -224,7 +323,7 @@ def monthly_loss(year: int, month: int):
     }
 
 # -------------------------------------------------
-# EXCEL AUDIT DOWNLOAD
+# AUDIT EXCEL
 # -------------------------------------------------
 @app.get("/audit/excel")
 def audit_excel(year: int, month: int):
@@ -236,7 +335,7 @@ def audit_excel(year: int, month: int):
     ws.title = "Bitumen Audit"
 
     ws.append([
-        "Date", "Tanker", "Supplier",
+        "Date", "Tanker", "Grade", "Supplier",
         "Invoice Qty", "Received Qty",
         "Rate", "Loss MT", "Loss ₹", "Leakage %"
     ])
@@ -246,6 +345,7 @@ def audit_excel(year: int, month: int):
             ws.append([
                 str(r.receipt_date),
                 r.tanker_no,
+                r.grade,
                 r.supplier,
                 r.quantity,
                 r.received_quantity,

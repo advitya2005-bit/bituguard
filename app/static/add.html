@@ -56,11 +56,20 @@
   <h2>Bitumen Receipt</h2>
 
   <input id="tanker" placeholder="Tanker No">
-  <input id="qty" type="number" placeholder="Invoice Qty (MT)">
-  <input id="recv" type="number" placeholder="Received Qty (MT)">
-  <input id="rate" type="number" placeholder="Rate ₹ / MT">
-  <input id="supplier" placeholder="Supplier">
-  <input id="date" type="date">
+
+<select id="grade">
+  <option value="">Select Grade</option>
+  <option value="VG10">VG10</option>
+  <option value="VG30">VG30</option>
+  <option value="VG40">VG40</option>
+</select>
+
+<input id="qty" type="number" placeholder="Invoice Qty (MT)">
+<input id="recv" type="number" placeholder="Received Qty (MT)">
+<input id="rate" type="number" placeholder="Rate ₹ / MT">
+<input id="supplier" placeholder="Supplier">
+<input id="date" type="date">
+
 
   <button onclick="save()">Save</button>
 
@@ -76,13 +85,14 @@ async function save() {
       method: "POST",
       headers: {"Content-Type":"application/json"},
       body: JSON.stringify({
-        tanker_no: tanker.value,
-        quantity: +qty.value,
-        received_quantity: +recv.value,
-        bitumen_rate: +rate.value,
-        supplier: supplier.value,
-        receipt_date: date.value
-      })
+  tanker_no: tanker.value,
+  grade: grade.value,
+  quantity: +qty.value,
+  received_quantity: +recv.value,
+  bitumen_rate: +rate.value,
+  supplier: supplier.value,
+  receipt_date: date.value
+})
     });
     await r.json();
     msg.innerText = "Saved ✔";
