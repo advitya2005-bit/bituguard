@@ -2,22 +2,87 @@
 <html>
 <head>
   <title>Alerts</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      font-family: system-ui, Arial;
+      background: #f8fafc;
+      padding: 16px;
+    }
+    h2 {
+      text-align: center;
+      margin-bottom: 16px;
+    }
+    .alert {
+      background: white;
+      padding: 14px;
+      margin-bottom: 12px;
+      border-radius: 10px;
+      box-shadow: 0 4px 14px rgba(0,0,0,.08);
+      border-left: 6px solid;
+    }
+    .LEAKAGE {
+      border-color: #dc2626;
+    }
+    .SUPPLIER_QUALITY_RISK {
+      border-color: #f59e0b;
+    }
+    .type {
+      font-weight: bold;
+      font-size: 14px;
+      margin-bottom: 4px;
+    }
+    .msg {
+      font-size: 15px;
+    }
+    .empty {
+      text-align: center;
+      color: #64748b;
+      margin-top: 40px;
+    }
+  </style>
 </head>
-<body style="font-family:Arial;padding:20px">
 
-<h2>Alerts</h2>
-<ul id="list"></ul>
+<body>
+
+<h2>🚨 Alerts</h2>
+
+<div id="list"></div>
 
 <script>
-fetch("http://127.0.0.1:8000/fraud/alerts")
-  .then(r=>r.json())
-  .then(d=>{
-    d.alerts.forEach(a=>{
-      const li=document.createElement("li");
-      li.innerText="⚠️ "+a.message;
-      list.appendChild(li);
+async function loadAlerts() {
+  const list = document.getElementById("list");
+  list.innerHTML = "Loading...";
+
+  try {
+    const res = await fetch("/fraud/alerts");
+    const data = await res.json();
+
+    list.innerHTML = "";
+
+    if (!data.alerts || data.alerts.length === 0) {
+      list.innerHTML = '<div class="empty">No alerts found</div>';
+      return;
+    }
+
+    data.alerts.forEach(a => {
+      const div = document.createElement("div");
+      div.className = "alert " + a.type;
+
+      div.innerHTML = `
+        <div class="type">${a.type.replaceAll("_"," ")}</div>
+        <div class="msg">${a.message}</div>
+      `;
+
+      list.appendChild(div);
     });
-  });
+
+  } catch {
+    list.innerHTML = '<div class="empty">Server error</div>';
+  }
+}
+
+loadAlerts();
 </script>
 
 </body>
